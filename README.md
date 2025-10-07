@@ -65,7 +65,7 @@ En la arquitectura fueron utilizadas únicamente herramientas **open-source y se
 
 ---
 
-## 🧠 Pipeline de Machine Learning
+## Pipeline de Machine Learning
 
 ### 1. Preprocesamiento (`preprocess.py`)
 - Carga del dataset **Boston Housing (open source)**.
