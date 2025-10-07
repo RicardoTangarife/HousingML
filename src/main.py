@@ -9,8 +9,8 @@ import subprocess
 import logging
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
-from schemas.service_schemas import PredictRequest, PredictResponse, RetrainResponse, MonitorResponse, MonitorRequest
-from repositories.database_repository import DatabaseRepository
+from src.schemas.service_schemas import PredictRequest, PredictResponse, RetrainResponse, MonitorResponse, MonitorRequest
+from src.repositories.database_repository import DatabaseRepository
 
 from dotenv import load_dotenv
 load_dotenv()
