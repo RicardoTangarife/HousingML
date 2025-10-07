@@ -23,9 +23,15 @@ class RetrainResponse(BaseModel):
     metrics: Dict[str, Any] = Field(..., description="Métricas obtenidas durante el entrenamiento.")
 
 class MonitorRequest(BaseModel):
+    """
+    Request del endpoint de monitor.
+    """
     dias: int = Field(..., gt=0, description="Número de días hacia atrás para contar las predicciones.")
 
 class MonitorResponse(BaseModel):
+    """
+    Respuesta del endpoint de monitor.
+    """
     total_predicciones: int
     dias: int
     fecha_inicio: datetime
