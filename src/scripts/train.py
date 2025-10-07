@@ -5,14 +5,15 @@ import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
+from xgboost import XGBRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import cross_val_score
 import json
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from repositories.database_repository import DatabaseRepository
 
-from xgboost import XGBRegressor
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import cross_val_score
+
 
 class TrainingService:
     """
@@ -80,7 +81,7 @@ def load_params(params_path: str) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", default="data/curated/HousingDataTrain.csv")
-    parser.add_argument("--params", default="mlops/params.yaml")
+    parser.add_argument("--params", default="src/mlops/params.yaml")
     parser.add_argument("--model_out", default="models/model.joblib")
     parser.add_argument("--info_out", default="models/model_info_train.json")
     args = parser.parse_args()

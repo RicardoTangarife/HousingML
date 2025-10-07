@@ -4,13 +4,12 @@ import joblib
 from pathlib import Path
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import subprocess
-import numpy as np
 import logging
-from scipy.stats import ks_2samp
-
-from schemas.service_schemas import PredictRequest, PredictResponse, RetrainResponse, MonitorResponse
+import sys
+sys.path.append(str(Path(__file__).parent.parent))
+from schemas.service_schemas import PredictRequest, PredictResponse, RetrainResponse, MonitorResponse, MonitorRequest
 from repositories.database_repository import DatabaseRepository
 
 from dotenv import load_dotenv
@@ -18,11 +17,13 @@ load_dotenv()
 
 MODEL_PATH = os.getenv("MODEL_PATH", "../models/model.joblib")
 MONITOR_CSV = os.getenv("MONITOR_CSV", "../data/monitoring/predictions.csv")
+RAW_CSV = os.getenv("RAW_CSV", "../data/raw/HousingData.csv")
 TRAIN_CSV = os.getenv("TRAIN_CSV", "../data/curated/HousingDataTrain.csv")
 TEST_CSV = os.getenv("TEST_CSV", "../data/curated/HousingDataTest.csv")
 SCALER_PATH = os.getenv("SCALER_PATH", "../models/scaler.joblib")
-PARAMS_PATH = os.getenv("PARAMS_PATH", "../mlops/params.yaml")
+PARAMS_PATH = os.getenv("PARAMS_PATH", "mlops/params.yaml")
 MODEL_INFO_PATH = os.getenv("MODEL_INFO_PATH", "../models/model_info_train.json")
+METRICS_PATH = os.getenv("METRICS_PATH", "../data/monitoring/metrics.json")
 
 
 train_repo = DatabaseRepository(TRAIN_CSV)
@@ -70,9 +71,7 @@ def predict(req: PredictRequest):
     if scaler is None:
         raise HTTPException(status_code=400, detail="El scaler no está disponible. Ejecute el entrenamiento primero.")
 
-
     try:
-        
         train_df = train_repo.load()
         expected_cols = [col for col in train_df.columns if col != 'MEDV']
 
@@ -108,15 +107,18 @@ def retrain():
     Actualiza el modelo productivo y retorna las métricas principales.
     """
     try:
-        preprocess_cmd = ["python", "scripts/preprocess.py", "--input", "../data/raw/HousingData.csv", "--params", PARAMS_PATH, "--train_out", TRAIN_CSV, "--test_out", TEST_CSV, "--scaler_out", SCALER_PATH]
+        preprocess_cmd = ["python", "scripts/preprocess.py", "--input", RAW_CSV, "--params", PARAMS_PATH, "--train_out", TRAIN_CSV, "--test_out", TEST_CSV, "--scaler_out", SCALER_PATH]
         subprocess.run(preprocess_cmd, check=True)
 
         train_cmd = ["python", "scripts/train.py", "--train", TRAIN_CSV, "--params", PARAMS_PATH, "--model_out", MODEL_PATH, "--info_out", MODEL_INFO_PATH]
         subprocess.run(train_cmd, check=True)
 
+        evaluate_cmd = ["python", "scripts/evaluate.py", "--test", TEST_CSV, "--model", MODEL_PATH, "--params", PARAMS_PATH, "--metrics_out", METRICS_PATH]
+        subprocess.run(evaluate_cmd, check=True)
+
         metrics = {}
-        if Path(MODEL_INFO_PATH).exists():
-            with open(MODEL_INFO_PATH) as f:
+        if Path(METRICS_PATH).exists():
+            with open(METRICS_PATH) as f:
                 metrics = json.load(f)
 
         global model
@@ -130,86 +132,41 @@ def retrain():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def calculate_psi(expected, actual, bins=10):
+@app.post("/monitor", response_model=MonitorResponse, summary="Cuenta cuántas predicciones se han hecho en los últimos N días.")
+def monitor(request: MonitorRequest):
     """
-    Calcula el Population Stability Index (PSI) entre dos distribuciones.
-    """
-    expected = np.array(expected)
-    actual = np.array(actual)
-    breakpoints = np.percentile(expected, np.linspace(0, 100, bins + 1))
-    expected_counts = np.histogram(expected, bins=breakpoints)[0]
-    actual_counts = np.histogram(actual, bins=breakpoints)[0]
-    expected_perc = expected_counts / len(expected)
-    actual_perc = actual_counts / len(actual)
-    psi = np.sum((expected_perc - actual_perc) * np.log((expected_perc + 1e-6) / (actual_perc + 1e-6)))
-    return float(round(psi, 4))
-
-
-def calculate_ks(expected, actual):
-    """
-    Calcula el estadístico KS para detectar drift en variables numéricas.
-    """
-    stat, p_value = ks_2samp(expected, actual)
-    return {"ks_stat": round(stat, 4), "p_value": round(p_value, 4)}
-
-
-@app.get("/monitor", response_model=MonitorResponse, summary="Evalúa el drift de variables y calcula PSI entre entrenamiento y predicciones recientes.")
-def monitor():
-    """
-    Evalúa el drift de las variables comparando el set de entrenamiento con las predicciones recientes.
-    Retorna el PSI por variable y alerta si alguna variable supera el umbral de drift.
+    Cuenta cuántas predicciones se han realizado en los últimos `n` días.
+    Usa el archivo de monitoreo donde cada predicción está registrada con una columna 'timestamp'.
     """
     try:
         if not Path(MONITOR_CSV).exists():
-            return MonitorResponse(
-                psi={},
-                drift_alerts=[],
-                psi_threshold=0.2,
-                message="No se encontró el archivo de monitoreo. Aún no hay datos registrados para comparar."
-            )
+            raise HTTPException(status_code=404, detail="No se encontró el archivo de monitoreo. Aún no hay registros.")
+        df = monitor_repo.load()
+        
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        fecha_fin = datetime.now()
+        fecha_inicio = fecha_fin - timedelta(days=request.dias)
 
-        train_df = train_repo.load()
-        monitor_df = monitor_repo.load()
+        mask = (df["timestamp"] >= fecha_inicio) & (df["timestamp"] <= fecha_fin)
+        df_filtrado = df.loc[mask]
+        total_predicciones = len(df_filtrado)
 
-        if train_df.empty:
-            return MonitorResponse(
-                psi={},
-                drift_alerts=[],
-                psi_threshold=0.2,
-                message="El conjunto de entrenamiento está vacío. No es posible realizar el monitoreo."
-            )
-
-        if monitor_df.empty or len(monitor_df) < 5:
-            return MonitorResponse(
-                psi={},
-                drift_alerts=[],
-                psi_threshold=0.2,
-                message="El archivo de monitoreo está vacío o tiene pocos registros. No hay datos suficientes para evaluar drift."
-            )
-
-        feature_cols = [col for col in train_df.columns if col != 'MEDV' and col in monitor_df.columns]
-        psi_results = {}
-        ks_results = {}
-        drift_alerts = []
-
-        for col in feature_cols:
-            psi = calculate_psi(train_df[col], monitor_df[col])
-            psi_results[col] = psi
-            ks_result = calculate_ks(train_df[col], monitor_df[col])
-            ks_results[col] = ks_result
-            #if psi > 0.2:
-                #drift_alerts.append(col)
-            if ks_result["p_value"] < 0.05:
-                drift_alerts.append(col)
-
-        message = "Variables con posible drift: " + ", ".join(drift_alerts) if drift_alerts else "Sin drift significativo"
+        message = (
+            f"Se encontraron {total_predicciones} predicciones en los últimos {request.dias} días "
+            f"(desde {fecha_inicio.date()} hasta {fecha_fin.date()})."
+        )
 
         return MonitorResponse(
-            psi=psi_results,
-            drift_alerts=drift_alerts,
-            psi_threshold=0.2,
+            total_predicciones=total_predicciones,
+            dias=request.dias,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
             message=message
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    

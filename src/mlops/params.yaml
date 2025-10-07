@@ -10,6 +10,3 @@ training:
   subsample: 0.8
   colsample_bytree: 0.8
   random_state: 42
-
-monitoring:
-  monitoring_csv: "data/monitoring/predictions.csv"

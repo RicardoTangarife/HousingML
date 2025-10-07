@@ -9,7 +9,6 @@ import joblib
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
-#from repositories.database_repository import DatabaseRepository
 from repositories.database_repository import DatabaseRepository
 
 class PreprocessingService:
@@ -83,7 +82,7 @@ def load_params(params_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="data/raw/HousingData.csv")
-    parser.add_argument("--params", default="mlops/params.yaml")
+    parser.add_argument("--params", default="src/mlops/params.yaml")
     parser.add_argument("--train_out", default="data/curated/HousingDataTrain.csv")
     parser.add_argument("--test_out", default="data/curated/HousingDataTest.csv")
     parser.add_argument("--scaler_out", default="models/scaler.joblib")
