@@ -5,13 +5,13 @@ import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
+from sklearn.metrics import mean_squared_error, r2_score
 import json
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 from repositories.database_repository import DatabaseRepository
 
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import cross_val_score
+
 
 class EvaluationService:
     """
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", default="data/curated/HousingDataTest.csv")
     parser.add_argument("--model", default="models/model.joblib")
-    parser.add_argument("--params", default="mlops/params.yaml")
+    parser.add_argument("--params", default="src/mlops/params.yaml")
     parser.add_argument("--metrics_out", default="data/monitoring/metrics.json")
     args = parser.parse_args()
 
