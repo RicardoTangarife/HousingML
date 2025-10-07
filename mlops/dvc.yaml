@@ -1,0 +1,34 @@
+stages:
+  preprocess:
+    cmd: python src/scripts/preprocess.py
+    deps:
+      - src/scripts/preprocess.py
+      - src/repositories/database_repository.py
+      - data/raw/HousingData.csv
+      - mlops/params.yaml
+    outs:
+      - data/curated/HousingDataTrain.csv
+      - data/curated/HousingDataTest.csv
+      - models/scaler.joblib
+      
+  train:
+    cmd: python src/scripts/train.py
+    deps:
+      - src/scripts/train.py
+      - src/model.py
+      - src/scripts/preprocess.py
+      - data/curated/HousingDataTrain.csv
+      - mlops/params.yaml
+    outs:
+      - models/model.joblib
+      - models/model_info_train.json
+
+  evaluate:
+    cmd: python src/scripts/evaluate.py
+    deps:
+      - src/scripts/evaluate.py
+      - models/model.joblib
+      - data/curated/HousingDataTest.csv
+      - mlops/params.yaml
+    metrics:
+      - data/monitoring/metrics.json

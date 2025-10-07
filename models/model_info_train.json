@@ -1,0 +1,7 @@
+{
+  "R2": 1.0,
+  "Adjusted_R2": 1.0,
+  "CrossValidated_R2": 0.8845,
+  "RMSE": 0.0006,
+  "model_type": "XGBRegressor"
+}
