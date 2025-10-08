@@ -1,0 +1,12 @@
+preprocessing:
+  test_size: 0.2
+  random_state: 42
+
+training:
+  model_type: "xgboost.XGBRegressor"
+  n_estimators: 1000
+  max_depth: 7
+  eta: 0.1
+  subsample: 0.8
+  colsample_bytree: 0.8
+  random_state: 42

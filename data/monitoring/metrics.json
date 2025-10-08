@@ -1,0 +1,6 @@
+{
+  "R2": 0.6722,
+  "Adjusted_R2": 0.6126,
+  "RMSE": 5.2584,
+  "model_type": "XGBRegressor"
+}
